@@ -1,9 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { loginSchema, registerSchema, insertCartItemSchema, insertReviewSchema } from "@shared/schema";
+import crypto from "crypto";
+import { loginSchema, registerSchema, insertCartItemSchema, insertReviewSchema, insertOrderSchema } from "@shared/schema";
 import session from "express-session";
 import MemoryStore from "memorystore";
+import crypto from "crypto";
 
 const MemoryStoreConstructor = MemoryStore(session);
 
@@ -279,6 +281,199 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Données invalides", errors: error.issues });
       }
       res.status(500).json({ message: "Erreur lors de la création de l'avis" });
+    }
+  });
+
+  // Order routes
+  app.get('/api/orders', requireAuth, async (req: any, res) => {
+    try {
+      const orders = await storage.getOrders(req.userId);
+      res.json(orders);
+    } catch (error) {
+      res.status(500).json({ message: "Erreur lors de la récupération des commandes" });
+    }
+  });
+
+  app.get('/api/orders/:id', requireAuth, async (req: any, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const order = await storage.getOrder(orderId);
+      if (!order || order.userId !== req.userId) {
+        return res.status(404).json({ message: "Commande non trouvée" });
+      }
+      res.json(order);
+    } catch (error) {
+      res.status(500).json({ message: "Erreur lors de la récupération de la commande" });
+    }
+  });
+
+  // CinetPay payment routes
+  app.post('/api/payment/initiate', requireAuth, async (req: any, res) => {
+    try {
+      const { amount, currency = 'XOF', description } = req.body;
+      
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Montant invalide" });
+      }
+
+      // Generate unique transaction ID
+      const transactionId = `TXN_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+      
+      // Get user info
+      const user = await storage.getUser(req.userId);
+      if (!user) {
+        return res.status(401).json({ message: "Utilisateur non trouvé" });
+      }
+
+      // CinetPay API payload
+      const paymentData = {
+        apikey: process.env.CINETPAY_API_KEY || '',
+        site_id: process.env.CINETPAY_SITE_ID || '',
+        transaction_id: transactionId,
+        amount: Math.round(amount), // Ensure integer
+        currency,
+        description: description || 'Achat de produits de karité',
+        customer_name: user.name?.split(' ')[0] || 'Client',
+        customer_surname: user.name?.split(' ').slice(1).join(' ') || '',
+        customer_email: user.email,
+        customer_phone_number: '+22500000000', // Default phone
+        notify_url: `${req.protocol}://${req.get('host')}/api/payment/notify`,
+        return_url: `${req.protocol}://${req.get('host')}/payment/success`,
+        channels: 'ALL',
+        lang: 'FR'
+      };
+
+      // Call CinetPay API
+      const response = await fetch('https://api-checkout.cinetpay.com/v2/payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      const result = await response.json();
+
+      if (result.code === '201') {
+        // Store transaction in database
+        const order = await storage.createOrder(req.userId, {
+          totalAmount: amount.toString(),
+          status: 'pending',
+          paymentMethod: 'cinetpay',
+          transactionId: transactionId,
+          shippingAddress: '',
+          billingAddress: ''
+        });
+
+        res.json({
+          success: true,
+          payment_url: result.data.payment_url,
+          payment_token: result.data.payment_token,
+          transaction_id: transactionId,
+          order_id: order.id
+        });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: result.message || 'Erreur lors de l\'initialisation du paiement' 
+        });
+      }
+    } catch (error) {
+      console.error('Payment initiation error:', error);
+      res.status(500).json({ message: "Erreur lors de l'initialisation du paiement" });
+    }
+  });
+
+  // CinetPay notification handler (IPN)
+  app.post('/api/payment/notify', async (req, res) => {
+    try {
+      const { cpm_trans_id, cpm_amount, cpm_currency, cpm_result, cpm_trans_status } = req.body;
+
+      console.log('CinetPay notification received:', req.body);
+
+      if (cpm_result === '00' && cpm_trans_status === 'ACCEPTED') {
+        // Payment successful - update order status
+        const orders = await storage.getOrders(0); // Get all orders to find by transaction ID
+        const order = orders.find(o => o.transactionId === cpm_trans_id);
+        
+        if (order) {
+          // Update order status to completed
+          await storage.updateOrderStatus(order.id, 'completed');
+          
+          // Clear user's cart if payment successful
+          if (order.userId) {
+            await storage.clearCart(order.userId);
+          }
+          
+          console.log(`Payment successful for transaction ${cpm_trans_id}`);
+        }
+      } else {
+        // Payment failed - update order status
+        const orders = await storage.getOrders(0);
+        const order = orders.find(o => o.transactionId === cpm_trans_id);
+        
+        if (order) {
+          await storage.updateOrderStatus(order.id, 'failed');
+          console.log(`Payment failed for transaction ${cpm_trans_id}`);
+        }
+      }
+
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Notification handling error:', error);
+      res.status(500).send('ERROR');
+    }
+  });
+
+  // Check payment status
+  app.get('/api/payment/status/:transactionId', requireAuth, async (req: any, res) => {
+    try {
+      const { transactionId } = req.params;
+
+      // Check with CinetPay API
+      const checkData = {
+        apikey: process.env.CINETPAY_API_KEY || '',
+        site_id: process.env.CINETPAY_SITE_ID || '',
+        transaction_id: transactionId
+      };
+
+      const response = await fetch('https://api-checkout.cinetpay.com/v2/payment/check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(checkData)
+      });
+
+      const result = await response.json();
+      
+      if (result.code === '00') {
+        const paymentData = result.data;
+        
+        // Update local order status based on CinetPay response
+        const orders = await storage.getOrders(req.userId);
+        const order = orders.find(o => o.transactionId === transactionId);
+        
+        if (order && paymentData.status === 'ACCEPTED') {
+          await storage.updateOrderStatus(order.id, 'completed');
+          await storage.clearCart(req.userId);
+        }
+
+        res.json({
+          success: true,
+          status: paymentData.status,
+          amount: paymentData.amount,
+          currency: paymentData.currency
+        });
+      } else {
+        res.json({
+          success: false,
+          message: result.message || 'Transaction non trouvée'
+        });
+      }
+    } catch (error) {
+      console.error('Payment status check error:', error);
+      res.status(500).json({ message: "Erreur lors de la vérification du statut" });
     }
   });
 

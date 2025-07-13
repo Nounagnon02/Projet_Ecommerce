@@ -80,10 +80,11 @@ export const orders = pgTable("orders", {
   userId: integer("user_id").references(() => users.id),
   status: varchar("status", { length: 50 }).notNull().default("pending"),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
-  shippingAddress: text("shipping_address").notNull(),
-  billingAddress: text("billing_address").notNull(),
+  shippingAddress: text("shipping_address").notNull().default(""),
+  billingAddress: text("billing_address").notNull().default(""),
   paymentStatus: varchar("payment_status", { length: 50 }).notNull().default("pending"),
   paymentMethod: varchar("payment_method", { length: 50 }),
+  transactionId: varchar("transaction_id", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -198,6 +199,8 @@ export const insertOrderSchema = createInsertSchema(orders).pick({
   shippingAddress: true,
   billingAddress: true,
   paymentMethod: true,
+  transactionId: true,
+  status: true,
 });
 
 export const insertReviewSchema = createInsertSchema(reviews).pick({

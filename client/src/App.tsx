@@ -7,6 +7,9 @@ import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
 import Home from "@/pages/home";
+import Cart from "@/pages/cart";
+import Checkout from "@/pages/checkout";
+import PaymentSuccess from "@/pages/payment-success";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -29,6 +32,10 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Home} />
+          <Route path="/cart" component={Cart} />
+          <Route path="/checkout" component={Checkout} />
+          <Route path="/payment/success" component={PaymentSuccess} />
+          <Route path="/payment-success" component={PaymentSuccess} />
           <Route path="/auth" component={() => {
             window.location.href = "/";
             return null;

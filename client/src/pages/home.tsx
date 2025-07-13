@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { ShoppingBag, User, Heart, Search, ShoppingCart, Star } from "lucide-react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,11 @@ export default function Home() {
   // Fetch categories
   const { data: categories = [] } = useQuery({
     queryKey: ["/api/categories"],
+  });
+
+  // Fetch cart items count
+  const { data: cartItems = [] } = useQuery({
+    queryKey: ["/api/cart"],
   });
 
   // Add to cart mutation
@@ -84,12 +90,16 @@ export default function Home() {
               <button className="p-2 text-gray-600 hover:text-gray-900">
                 <Heart className="w-6 h-6" />
               </button>
-              <button className="p-2 text-gray-600 hover:text-gray-900 relative">
-                <ShoppingCart className="w-6 h-6" />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                  3
-                </span>
-              </button>
+              <Link href="/cart">
+                <button className="p-2 text-gray-600 hover:text-gray-900 relative">
+                  <ShoppingCart className="w-6 h-6" />
+                  {cartItems.length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {cartItems.length}
+                    </span>
+                  )}
+                </button>
+              </Link>
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-600" />
                 <span className="text-sm text-gray-700">{user?.name}</span>

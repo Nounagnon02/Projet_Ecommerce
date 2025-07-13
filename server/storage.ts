@@ -39,6 +39,7 @@ export interface IStorage {
   getOrders(userId: number): Promise<Order[]>;
   getOrder(id: number): Promise<Order | undefined>;
   createOrder(userId: number, order: InsertOrder): Promise<Order>;
+  updateOrderStatus(orderId: number, status: string): Promise<Order | undefined>;
   
   // Review operations
   getProductReviews(productId: number): Promise<Review[]>;
@@ -177,6 +178,14 @@ export class DatabaseStorage implements IStorage {
       .values({ ...order, userId })
       .returning();
     return newOrder;
+  }
+
+  async updateOrderStatus(orderId: number, status: string): Promise<Order | undefined> {
+    const [updatedOrder] = await db.update(orders)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updatedOrder || undefined;
   }
 
   // Review operations
