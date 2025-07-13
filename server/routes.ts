@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import crypto from "crypto";
-import { loginSchema, registerSchema, insertCartItemSchema, insertReviewSchema, insertOrderSchema } from "@shared/schema";
+import { loginSchema, registerSchema, insertCartItemSchema, insertReviewSchema, insertOrderSchema } from "@shared/mysql-schema";
 import session from "express-session";
 import MemoryStore from "memorystore";
 import crypto from "crypto";
