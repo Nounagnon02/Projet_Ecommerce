@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import NotFound from "@/pages/not-found";
 import Auth from "@/pages/auth";
+import Home from "@/pages/home";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27,27 +28,7 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={() => (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 mb-4">
-                  Bienvenue dans votre espace e-commerce!
-                </h1>
-                <p className="text-gray-600 mb-8">
-                  Vous êtes maintenant connecté avec succès.
-                </p>
-                <button 
-                  onClick={() => {
-                    const { logout } = useAuth();
-                    logout();
-                  }}
-                  className="bg-[hsl(249,83%,58%)] text-white px-6 py-2 rounded-lg hover:bg-[hsl(249,83%,52%)] transition-colors"
-                >
-                  Se déconnecter
-                </button>
-              </div>
-            </div>
-          )} />
+          <Route path="/" component={Home} />
           <Route path="/auth" component={() => {
             window.location.href = "/";
             return null;
