@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, Mail, Lock, LogIn } from "lucide-react";
-import { loginSchema, type LoginData } from "@shared/schema";
+import { loginSchema, type LoginData } from "@shared/mysql-schema";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 

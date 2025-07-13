@@ -1,5 +1,5 @@
 import { 
-  users, products, categories, cartItems, orders, orderItems, reviews,
+  users, products as productsTable, categories, cartItems, orders, orderItems, reviews,
   type User, type InsertUser, type Product, type InsertProduct, 
   type Category, type InsertCategory, type CartItem, type InsertCartItem,
   type Order, type InsertOrder, type OrderItem, type Review, type InsertReview
@@ -21,7 +21,7 @@ export interface IStorage {
   getProduct(id: number): Promise<Product | undefined>;
   getFeaturedProducts(): Promise<Product[]>;
   getProductsByCategory(categoryId: number): Promise<Product[]>;
-  createProduct(product: InsertProduct): Promise<Product>;
+  createProduct(product: Omit<InsertProduct, 'images'> & { images: string[] }): Promise<Product>;
   
   // Category operations
   getCategories(): Promise<Category[]>;
@@ -60,14 +60,17 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const hashedPassword = await this.hashPassword(insertUser.password);
-    await db.insert(users).values({ ...insertUser, password: hashedPassword });
+    const result = await db.insert(users).values({ 
+      ...insertUser, 
+      password: hashedPassword 
+    });
     
-    // Récupérer l'utilisateur nouvellement créé
-    const [user] = await db.select().from(users)
-      .where(eq(users.email, insertUser.email))
+    const [user] = await db.select()
+      .from(users)
+      .where(eq(users.id, result[0].insertId))
       .limit(1);
-      
-    if (!user) throw new Error("Failed to create user");
+    
+    if (!user) throw new Error("User creation failed");
     return user;
   }
 
@@ -81,35 +84,63 @@ export class DatabaseStorage implements IStorage {
 
   // Product operations
   async getProducts(): Promise<Product[]> {
-    return await db.select().from(products).where(eq(products.isActive, true));
+    const products = await db.select().from(productsTable).where(eq(productsTable.isActive, true));
+    return products.map(product => ({
+      ...product,
+      images: product.images ? JSON.parse(product.images) : []
+    }));
   }
 
   async getProduct(id: number): Promise<Product | undefined> {
-    const [product] = await db.select().from(products).where(eq(products.id, id)).limit(1);
-    return product;
+    const [product] = await db.select().from(productsTable).where(eq(productsTable.id, id)).limit(1);
+    if (!product) return undefined;
+    
+    return {
+      ...product,
+      images: product.images ? JSON.parse(product.images) : []
+    };
   }
 
   async getFeaturedProducts(): Promise<Product[]> {
-    return await db.select().from(products)
-      .where(and(eq(products.isActive, true), eq(products.isFeatured, true)))
+    const featuredProducts = await db.select().from(productsTable)
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.isFeatured, true)))
       .limit(8);
+    
+    return featuredProducts.map(product => ({
+      ...product,
+      images: product.images ? JSON.parse(product.images) : []
+    }));
   }
 
   async getProductsByCategory(categoryId: number): Promise<Product[]> {
-    return await db.select().from(products)
-      .where(and(eq(products.isActive, true), eq(products.categoryId, categoryId)));
+    const categoryProducts = await db.select().from(productsTable)
+      .where(and(eq(productsTable.isActive, true), eq(productsTable.categoryId, categoryId)));
+    
+    return categoryProducts.map(product => ({
+      ...product,
+      images: product.images ? JSON.parse(product.images) : []
+    }));
   }
 
-  async createProduct(product: InsertProduct): Promise<Product> {
-    await db.insert(products).values(product);
+  async createProduct(product: Omit<InsertProduct, 'images'> & { images: string[] }): Promise<Product> {
+    const productData = {
+      ...product,
+      images: JSON.stringify(product.images),
+      isActive: true
+    };
     
-    // Récupérer le dernier produit inséré
-    const [newProduct] = await db.select().from(products)
-      .orderBy(desc(products.id))
+    const result = await db.insert(productsTable).values(productData);
+    
+    const [newProduct] = await db.select().from(productsTable)
+      .where(eq(productsTable.id, result[0].insertId))
       .limit(1);
       
     if (!newProduct) throw new Error("Failed to create product");
-    return newProduct;
+    
+    return {
+      ...newProduct,
+      images: newProduct.images ? JSON.parse(newProduct.images) : []
+    };
   }
 
   // Category operations
@@ -123,11 +154,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCategory(category: InsertCategory): Promise<Category> {
-    await db.insert(categories).values(category);
+    const result = await db.insert(categories).values(category);
     
-    // Récupérer la dernière catégorie insérée
     const [newCategory] = await db.select().from(categories)
-      .orderBy(desc(categories.id))
+      .where(eq(categories.id, result[0].insertId))
       .limit(1);
       
     if (!newCategory) throw new Error("Failed to create category");
@@ -140,18 +170,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addToCart(userId: number, item: InsertCartItem): Promise<CartItem> {
-    // Vérifier si l'article existe déjà dans le panier
     const [existingItem] = await db.select().from(cartItems)
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, item.productId!)))
       .limit(1);
 
     if (existingItem) {
-      // Mettre à jour la quantité si l'article existe
       await db.update(cartItems)
         .set({ quantity: existingItem.quantity! + (item.quantity || 1) })
         .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, item.productId!)));
       
-      // Récupérer l'article mis à jour
       const [updatedItem] = await db.select().from(cartItems)
         .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, item.productId!)))
         .limit(1);
@@ -159,13 +186,11 @@ export class DatabaseStorage implements IStorage {
       if (!updatedItem) throw new Error("Failed to update cart item");
       return updatedItem;
     } else {
-      // Ajouter un nouvel article au panier
-      await db.insert(cartItems)
+      const result = await db.insert(cartItems)
         .values({ ...item, userId });
       
-      // Récupérer le nouvel article
       const [newItem] = await db.select().from(cartItems)
-        .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, item.productId!)))
+        .where(eq(cartItems.id, result[0].insertId))
         .limit(1);
         
       if (!newItem) throw new Error("Failed to add item to cart");
@@ -178,7 +203,6 @@ export class DatabaseStorage implements IStorage {
       .set({ quantity })
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
     
-    // Récupérer l'article mis à jour
     const [updatedItem] = await db.select().from(cartItems)
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)))
       .limit(1);
@@ -189,12 +213,13 @@ export class DatabaseStorage implements IStorage {
   async removeFromCart(userId: number, productId: number): Promise<boolean> {
     const result = await db.delete(cartItems)
       .where(and(eq(cartItems.userId, userId), eq(cartItems.productId, productId)));
-    return result.affectedRows > 0;
+    return result[0].affectedRows > 0;
   }
 
   async clearCart(userId: number): Promise<boolean> {
-    const result = await db.delete(cartItems).where(eq(cartItems.userId, userId));
-    return result.affectedRows > 0;
+    const result = await db.delete(cartItems)
+      .where(eq(cartItems.userId, userId));
+    return result[0].affectedRows > 0;
   }
 
   // Order operations
@@ -210,12 +235,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(userId: number, order: InsertOrder): Promise<Order> {
-    await db.insert(orders)
+    const result = await db.insert(orders)
       .values({ ...order, userId });
     
-    // Récupérer la dernière commande créée
     const [newOrder] = await db.select().from(orders)
-      .orderBy(desc(orders.id))
+      .where(eq(orders.id, result[0].insertId))
       .limit(1);
       
     if (!newOrder) throw new Error("Failed to create order");
@@ -227,7 +251,6 @@ export class DatabaseStorage implements IStorage {
       .set({ status, updatedAt: new Date() })
       .where(eq(orders.id, orderId));
     
-    // Récupérer la commande mise à jour
     const [updatedOrder] = await db.select().from(orders)
       .where(eq(orders.id, orderId))
       .limit(1);
@@ -243,12 +266,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReview(userId: number, review: InsertReview): Promise<Review> {
-    await db.insert(reviews)
+    const result = await db.insert(reviews)
       .values({ ...review, userId });
     
-    // Récupérer le dernier avis créé
     const [newReview] = await db.select().from(reviews)
-      .orderBy(desc(reviews.id))
+      .where(eq(reviews.id, result[0].insertId))
       .limit(1);
       
     if (!newReview) throw new Error("Failed to create review");

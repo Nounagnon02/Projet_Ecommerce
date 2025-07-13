@@ -1,9 +1,9 @@
-import { pgTable, text, serial, varchar, timestamp, boolean, decimal, integer } from "drizzle-orm/pg-core";
+import { mysqlTable, text, serial, varchar, timestamp, boolean, decimal, int } from "drizzle-orm/mysql-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
 
-export const users = pgTable("users", {
+export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
@@ -11,7 +11,7 @@ export const users = pgTable("users", {
   emailVerifiedAt: timestamp("email_verified_at"),
   rememberToken: varchar("remember_token", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -37,25 +37,25 @@ export const registerSchema = z.object({
 });
 
 // Products table for shea butter e-commerce
-export const products = pgTable("products", {
+export const products = mysqlTable("products", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description").notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   originalPrice: decimal("original_price", { precision: 10, scale: 2 }),
-  stock: integer("stock").notNull().default(0),
-  categoryId: integer("category_id").references(() => categories.id),
-  images: text("images").array(),
+  stock: int("stock").notNull().default(0),
+  categoryId: int("category_id").references(() => categories.id),
+  images: text("images"), // MySQL ne supporte pas nativement les array comme PostgreSQL
   rating: decimal("rating", { precision: 3, scale: 2 }).default("0"),
-  reviewCount: integer("review_count").default(0),
+  reviewCount: int("review_count").default(0),
   isActive: boolean("is_active").default(true),
   isFeatured: boolean("is_featured").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
 // Categories table
-export const categories = pgTable("categories", {
+export const categories = mysqlTable("categories", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
@@ -65,19 +65,19 @@ export const categories = pgTable("categories", {
 });
 
 // Cart items table
-export const cartItems = pgTable("cart_items", {
+export const cartItems = mysqlTable("cart_items", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  productId: integer("product_id").references(() => products.id),
-  quantity: integer("quantity").notNull().default(1),
+  userId: int("user_id").references(() => users.id),
+  productId: int("product_id").references(() => products.id),
+  quantity: int("quantity").notNull().default(1),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
 // Orders table
-export const orders = pgTable("orders", {
+export const orders = mysqlTable("orders", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
+  userId: int("user_id").references(() => users.id),
   status: varchar("status", { length: 50 }).notNull().default("pending"),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   shippingAddress: text("shipping_address").notNull().default(""),
@@ -86,31 +86,31 @@ export const orders = pgTable("orders", {
   paymentMethod: varchar("payment_method", { length: 50 }),
   transactionId: varchar("transaction_id", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow(),
 });
 
 // Order items table
-export const orderItems = pgTable("order_items", {
+export const orderItems = mysqlTable("order_items", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").references(() => orders.id),
-  productId: integer("product_id").references(() => products.id),
-  quantity: integer("quantity").notNull(),
+  orderId: int("order_id").references(() => orders.id),
+  productId: int("product_id").references(() => products.id),
+  quantity: int("quantity").notNull(),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Reviews table
-export const reviews = pgTable("reviews", {
+export const reviews = mysqlTable("reviews", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  productId: integer("product_id").references(() => products.id),
-  rating: integer("rating").notNull(),
+  userId: int("user_id").references(() => users.id),
+  productId: int("product_id").references(() => products.id),
+  rating: int("rating").notNull(),
   comment: text("comment"),
   isVerified: boolean("is_verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Relations
+// Relations (identique à PostgreSQL)
 export const usersRelations = relations(users, ({ many }) => ({
   cartItems: many(cartItems),
   orders: many(orders),
@@ -172,7 +172,7 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
   }),
 }));
 
-// Insert schemas
+// Insert schemas (inchangés)
 export const insertProductSchema = createInsertSchema(products).pick({
   name: true,
   description: true,
@@ -181,8 +181,10 @@ export const insertProductSchema = createInsertSchema(products).pick({
   stock: true,
   categoryId: true,
   images: true,
+  rating: true,
+  reviewCount: true,
+  isFeatured: true
 });
-
 export const insertCategorySchema = createInsertSchema(categories).pick({
   name: true,
   description: true,
@@ -209,7 +211,7 @@ export const insertReviewSchema = createInsertSchema(reviews).pick({
   comment: true,
 });
 
-// Type exports
+// Type exports (inchangés)
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type LoginData = z.infer<typeof loginSchema>;

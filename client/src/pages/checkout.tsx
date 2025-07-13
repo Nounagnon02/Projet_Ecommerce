@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ShoppingCart, CreditCard, Smartphone, Banknote, ArrowLeft, Loader2 } from "lucide-react";
 import { Link } from "wouter";
-import type { CartItem, Product } from "@shared/schema";
+import type { CartItem, Product } from "@shared/mysql-schema";
 
 interface CartItemWithProduct extends CartItem {
   product: Product;

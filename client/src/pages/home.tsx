@@ -2,22 +2,24 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { ShoppingBag, User, Heart, Search, ShoppingCart, Star } from "lucide-react";
+import { ShoppingBag,User, Heart, Search, ShoppingCart, Star } from "lucide-react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import type { Product } from "@shared/schema";
+import type { Product, CartItem , } from "@shared/mysql-schema";
+
 
 export default function Home() {
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
 
   // Fetch featured products
-  const { data: featuredProducts = [], isLoading: productsLoading } = useQuery({
+  const { data: featuredProducts = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ["/api/products/featured"],
   });
 
@@ -27,7 +29,7 @@ export default function Home() {
   });
 
   // Fetch cart items count
-  const { data: cartItems = [] } = useQuery({
+  const { data: cartItems = [] } = useQuery<CartItem[]>({
     queryKey: ["/api/cart"],
   });
 
@@ -44,7 +46,7 @@ export default function Home() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Erreur",
         description: error.message || "Erreur lors de l'ajout au panier",
@@ -68,7 +70,7 @@ export default function Home() {
               <div className="h-10 w-10 bg-gradient-to-r from-[hsl(249,83%,58%)] to-[hsl(258,90%,60%)] rounded-full flex items-center justify-center">
                 <ShoppingBag className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">KaritéShop</h1>
+              <h1 className="text-xl font-bold text-gray-900">SheaMarket</h1>
             </div>
 
             {/* Search Bar */}
@@ -87,11 +89,18 @@ export default function Home() {
 
             {/* User Menu */}
             <div className="flex items-center space-x-4">
-              <button className="p-2 text-gray-600 hover:text-gray-900">
+              <button 
+                type="button"
+                className="p-2 text-gray-600 hover:text-gray-900"
+                aria-label="Wishlist"
+              >
                 <Heart className="w-6 h-6" />
               </button>
               <Link href="/cart">
-                <button className="p-2 text-gray-600 hover:text-gray-900 relative">
+                <button 
+                  type="button"
+                  className="p-2 text-gray-600 hover:text-gray-900 relative"
+                >
                   <ShoppingCart className="w-6 h-6" />
                   {cartItems.length > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -102,8 +111,9 @@ export default function Home() {
               </Link>
               <div className="flex items-center space-x-2">
                 <User className="w-5 h-5 text-gray-600" />
-                <span className="text-sm text-gray-700">{user?.name}</span>
+                <span className="text-sm text-gray-700">{user?.name || "Utilisateur"}</span>
                 <Button
+                  type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => logout()}
@@ -125,10 +135,11 @@ export default function Home() {
               Découvrez la Beauté Naturelle du Karité
             </h2>
             <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-              Produits 100% naturels et biologiques directement du Burkina Faso.
+              Produits 100% naturels et biologiques directement du Bénin.
               Nourrissez votre peau avec la richesse ancestrale du beurre de karité.
             </p>
             <Button
+              type="button"
               size="lg"
               className="bg-white text-[hsl(249,83%,58%)] hover:bg-gray-100 font-semibold px-8 py-3"
             >
@@ -185,7 +196,11 @@ export default function Home() {
                         -{ Math.round((1 - parseFloat(product.price) / parseFloat(product.originalPrice)) * 100) }%
                       </div>
                     )}
-                    <button className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-50">
+                    <button 
+                      type="button"
+                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-gray-50"
+                      aria-label="Wishlist"
+                    >
                       <Heart className="w-4 h-4 text-gray-600" />
                     </button>
                   </div>
@@ -219,17 +234,18 @@ export default function Home() {
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center space-x-2">
                         <span className="text-lg font-bold text-gray-900">
-                          {parseFloat(product.price).toFixed(2)}€
+                          {parseFloat(product.price).toFixed(2)}f
                         </span>
                         {product.originalPrice && (
                           <span className="text-sm text-gray-500 line-through">
-                            {parseFloat(product.originalPrice).toFixed(2)}€
+                            {parseFloat(product.originalPrice).toFixed(2)}f
                           </span>
                         )}
                       </div>
                     </div>
                     
                     <Button
+                      type="button"
                       className="w-full"
                       disabled={product.stock === 0 || addToCartMutation.isPending}
                       variant={product.stock > 0 ? "default" : "secondary"}

@@ -1,14 +1,10 @@
-import { defineConfig } from "drizzle-kit";
+import type { Config } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
-}
-
-export default defineConfig({
-  out: "./migrations",
-  schema: "./shared/schema.ts",
-  dialect: "postgresql",
+export default {
+  schema: "./shared/mysql-schema.ts",
+  out: "./drizzle/migrations",
+  dialect: "mysql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
-  },
-});
+    url: "mysql://user:password@localhost:3306/sheamarket"
+  }
+} satisfies Config;

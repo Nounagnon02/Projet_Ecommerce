@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
-import type { LoginData, RegisterData, User } from "@shared/schema";
+import type { LoginData, RegisterData, User } from "@shared/mysql-schema";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -50,7 +50,7 @@ export function useAuth() {
   });
 
   return {
-    user,
+    user: user as User | null,
     isLoading,
     isAuthenticated: !!user,
     login: loginMutation.mutateAsync,

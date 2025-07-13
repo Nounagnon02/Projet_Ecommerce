@@ -1,6 +1,8 @@
+// db.ts
 import { createPool } from 'mysql2/promise';
 import { drizzle } from 'drizzle-orm/mysql2';
 import dotenv from 'dotenv';
+import * as schema from "@shared/mysql-schema";
 
 dotenv.config();
 
@@ -14,5 +16,8 @@ const pool = createPool({
   queueLimit: 0
 });
 
-// Créez l'instance drizzle avec le schéma typé
-export const db = drizzle(pool);
+export const db = drizzle(pool, { 
+  schema,
+  mode: 'default',
+  logger: process.env.NODE_ENV === 'development'
+});
